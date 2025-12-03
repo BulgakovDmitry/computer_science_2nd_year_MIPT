@@ -22,23 +22,23 @@ pid_t my_fork(void) {
 }
 
 typedef struct SharedMemory {
-    int N;                  // всего охотников
-    int M;                  // количество дней
-    int day;                // текущий день
-    int alive_count;        // сколько охотников живо
-    int pot_meat;           // куски мяса в котле
-    int hunters_back;       // сколько охотников вернулось с охоты
-    int terminate;          // флаг завершения моделирования
+    int N;                                // всего охотников
+    int M;                                // количество дней
+    int day;                              // текущий день
+    int alive_count;                      // сколько охотников живо
+    int pot_meat;                         // куски мяса в котле
+    int hunters_back;                     // сколько охотников вернулось с охоты
+    int terminate;                        // флаг завершения моделирования
 
     int hunter_alive[MAX_HUNTERS];        // 1 — жив, 0 — убит
     int hunter_success_today[MAX_HUNTERS];// 1 — удачная охота
     int hunter_ate_today[MAX_HUNTERS];    // 1 — поел
     int hunter_forced_fail[MAX_HUNTERS];  // 1 — гарантированно провалит охоту
 
-    sem_t mutex;            // мьютекс для доступа к общей памяти
-    sem_t start_hunt;       // сигнал начала охоты
-    sem_t all_hunters_back; // сигнал, что все вернулись
-    sem_t dinner_done;      // сигнал окончания ужина
+    sem_t mutex;                          // мьютекс для доступа к общей памяти
+    sem_t start_hunt;                     // сигнал начала охоты
+    sem_t all_hunters_back;               // сигнал, что все вернулись
+    sem_t dinner_done;                    // сигнал окончания ужина
 } SharedMemory;
 
 static void hunter_process(int id, SharedMemory *shared_memory) {
@@ -48,14 +48,11 @@ static void hunter_process(int id, SharedMemory *shared_memory) {
         // Ждём начала дня (сигнал от повара)
         sem_wait(&shared_memory->start_hunt);
 
-        sem_wait(&shared_memory->mutex);
-        int terminate = shared_memory->terminate;
         int alive = shared_memory->hunter_alive[id];
         int day = shared_memory->day;
-        sem_post(&shared_memory->mutex);
 
         // Если моделирование закончено или охотник уже мёртв — выходим
-        if (terminate || !alive) {
+        if (shared_memory->terminate || !alive) {
             break;
         }
 
@@ -66,9 +63,8 @@ static void hunter_process(int id, SharedMemory *shared_memory) {
 
         // Определяем, была ли охота удачной
 
-        int forced = shared_memory->hunter_forced_fail[id];    // меняет повар когда хантеры не на охоте
         int success = 0;
-        if (forced) {
+        if (shared_memory->hunter_forced_fail[id] /* меняет повар когда хантеры не на охоте */) {
             success = 0;
         } else {
             success = rand() % 2; 
@@ -78,7 +74,7 @@ static void hunter_process(int id, SharedMemory *shared_memory) {
         shared_memory->hunter_success_today[id] = success;
         if (success) {
             shared_memory->pot_meat++;
-            printf("День %d: охотник %d удачно поохотился и принёс мясо. В котле теперь %d куск(ов)\n",
+            printf("День %d: охотник %d удачно поохотился и принёс мясо. В котле теперь %d кусков\n",
                    day, id, shared_memory->pot_meat);
         } else {
             printf("День %d: охотник %d вернулся без добычи\n", day, id);
@@ -97,11 +93,9 @@ static void hunter_process(int id, SharedMemory *shared_memory) {
         // Ждём, пока повар закончит раздачу еды
         sem_wait(&shared_memory->dinner_done);
 
-        sem_wait(&shared_memory->mutex);
         int ate = shared_memory->hunter_ate_today[id];
         alive = shared_memory->hunter_alive[id];
         day = shared_memory->day;
-        sem_post(&shared_memory->mutex);
 
         if (!alive) {
             printf("День %d: охотник %d был разделан поваром. Покойся с миром.\n", day, id);
@@ -156,12 +150,12 @@ static void cook_process(SharedMemory *shared_memory) {
         sem_wait(&shared_memory->mutex); 
         int meat = shared_memory->pot_meat;
         alive = shared_memory->alive_count;
-        printf("День %d: все охотники вернулись. В котле %d куск(ов) мяса\n", day, meat);
+        printf("День %d: все охотники вернулись. В котле %d кусков мяса\n", day, meat);
 
         // Повар ест первым
         if (meat > 0) {
             meat--;
-            printf("День %d: повар взял свою порцию. В котле осталось %d куск(ов)\n", day, meat);
+            printf("День %d: повар взял свою порцию. В котле осталось %d кусков\n", day, meat);
         } else {
             printf("День %d: повар остался голодным!\n", day);
         }
@@ -183,7 +177,7 @@ static void cook_process(SharedMemory *shared_memory) {
             }
         }
 
-        printf("День %d: после ужина в котле осталось %d куск(ов)\n", day, meat);
+        printf("День %d: после ужина в котле осталось %d кусков\n", day, meat);
 
         // Если кто-то голодный — повар злится и кого-то разделывает
         if (hungry_count > 0) {
@@ -231,10 +225,8 @@ static void cook_process(SharedMemory *shared_memory) {
     }
 
     // Завершаем моделирование
-    sem_wait(&shared_memory->mutex);
     shared_memory->terminate = 1;
     int alive = shared_memory->alive_count;
-    sem_post(&shared_memory->mutex);
 
     // На случай, если какие-то процессы ещё ждут семафоры — отпустим их
     for (int i = 0; i < alive + 4; ++i) {
