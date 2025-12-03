@@ -7,19 +7,19 @@
 const int ASCII_SINGER_COUNT = 128;      // Количество "богатырей" — по одному на каждый ASCII-символ
 const int MAX_SONG_BUFFER_SIZE = 1024;   // Максимальная длина строки (включая '\0')
 
-static const char *const SONG_FILE_NAME = "slova.txt";
+static const char *const SONG_FILE_NAME = "bogatiry/slova.txt";
 
 typedef struct Monitor {
-    pthread_mutex_t mutex;              // Монопольный доступ к общей памяти
-    pthread_cond_t  character_changed;  // Уведомление: текущий символ песни изменился
+    pthread_mutex_t mutex;                  // Монопольный доступ к общей памяти
+    pthread_cond_t  character_changed;      // Уведомление: текущий символ песни изменился
 
-    size_t next_singer_id;              // Какой ID (код символа) выдать следующему потоку
+    size_t next_singer_id;                  // Какой ID (код символа) выдать следующему потоку
 
     char   song_text[MAX_SONG_BUFFER_SIZE]; // Текст песни 
     size_t song_length;                     // strlen(song_text)
 
-    size_t next_char_index;             // Индекс следующего символа, который нужно подать в "текущий"
-    char   current_character;           // Текущий символ, который кто-то из богатырей должен "петь"
+    size_t next_char_index;                 // Индекс следующего символа, который нужно подать в "текущий"
+    char   current_character;               // Текущий символ, который кто-то из богатырей должен "петь"
 } Monitor;
 
 static void monitor_ctor(Monitor *monitor) {
@@ -44,10 +44,8 @@ static void monitor_dtor(Monitor *monitor) {
     pthread_mutex_destroy(&monitor->mutex);
 }
 
-
 static void sing_character(char character_to_print) {
     putchar(character_to_print);
-    fflush(stdout);
 }
 
 // Переход к следующему символу строки
@@ -55,8 +53,7 @@ static void move_to_next_character_locked(Monitor *monitor) {
     assert(monitor != NULL);
 
     if (monitor->next_char_index <= monitor->song_length) {
-        monitor->current_character =
-            monitor->song_text[monitor->next_char_index];
+        monitor->current_character = monitor->song_text[monitor->next_char_index];
         monitor->next_char_index++;
     } else {
         // За пределами строки всегда считаем, что песня уже кончилась
@@ -176,7 +173,7 @@ int main(void) {
                     "Не удалось создать поток %zu, код ошибки %d\n",
                     i,
                     create_result);
-
+                    
             // Сообщаем уже запущенным потокам, что песня закончилась,
             // чтобы они не висели в ожидании.
             pthread_mutex_lock(&monitor.mutex);
